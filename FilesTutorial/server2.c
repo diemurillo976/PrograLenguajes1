@@ -15,10 +15,12 @@ void error(const char *msg)
 
 int main(int argc, char *argv[])
 {
-	int socketFileDescriptor;
-	int newSocketFileDescriptor;
-	int portNumber; //Port number on which the server accepts connections
-	int pid;
+    signal(SIGCHLD,SIG_IGN);//prevents zombie processes
+	
+    int socketFileDescriptor;
+    int newSocketFileDescriptor;
+    int portNumber; //Port number on which the server accepts connections
+    int pid;
     socklen_t clientAddressLength; //size of the address of the client
 
     struct sockaddr_in serv_addr, cli_addr; //Direccion del servidor y del cliente
