@@ -8,6 +8,12 @@
 #include <signal.h>
 #include <string.h>
 
+char* words[100] ={"abecedarian","abracadabra","accoutrements","adagio","aficionado","agita","agog","akimbo","alfresco","aloof","ambrosial","amok","ampersand","anemone","anthropomorphic","antimacassar","aplomb","apogee","apoplectic","appaloosa","apparatus","archipelago","atingle","avuncular","azure","babushka","bailiwick","bafflegab","balderdash","ballistic","bamboozle","bandwagon","barnstorming","beanpole","bedlam","befuddled","bellwether","berserk","bibliopole","bigmouth","bippy","blabbermouth","blatherskite","blindside","blob","blockhead","blowback","blowhard","blubbering","bluestockings","boing","boffo (boffola)","bombastic","bonanza","bonkers","boondocks","boondoggle","borborygmus","bozo","braggadocio","brainstorm","brannigan","breakneck","brouhaha","buckaroo","bucolic","buffoon","bugaboo","bugbear","bulbous","bumbledom","bumfuzzle","bumpkin","bungalow","bunkum","bupkis","burnsides","busybody","cacophony","cahoots","calamity","calliope","candelabra","canoodle","cantankerous","catamaran","catastrophe","catawampus","caterwaul","chatterbox","chichi","chimerical","chimichanga","chitchat","claptrap","clishmaclaver","clodhopper","cockamamie","cockatoo","codswallop"};
+char digits[10] = {'0','1','2','3','4','5','6','7','8','9'};
+
+int getRandom(int,int);
+char* generateId(char*);
+
 struct infoCard{
 	char* userId;
 	int   socket;
@@ -22,6 +28,9 @@ struct Node
   
     struct Node *next; 
 }; 
+
+
+struct Node *start = NULL; 
 
 /* A linked list node */
 /* Function to add a node at the beginning of Linked List. 
@@ -55,6 +64,12 @@ void printList(struct Node *node, void (*fptr)(void *))
         (*fptr)(node->data); 
         node = node->next; 
     } 
+} 
+
+void printInfoCard(void *n) 
+{ 
+   struct infoCard * card = (struct infoCard *)n;
+   printf("socket: %d userId: %s \n", (*card).socket, (*card).userId); 
 } 
 
 void removeNode(struct Node** head_ref, void  *data) 
@@ -95,6 +110,7 @@ void error(const char *msg)
 int main(int argc, char *argv[])
 {
     signal(SIGCHLD,SIG_IGN);//prevents zombie processes
+    
 	
     int socketFileDescriptor;
     int newSocketFileDescriptor;
@@ -161,8 +177,22 @@ int main(int argc, char *argv[])
 }
 
 void standByMe(int mySock){
+
+	srand(getpid());//reseeds the randomgenerator
+
 	int n;
 	char buffer[256];
+
+	char* myId = malloc( (size_t)35 );
+	generateId(myId);
+
+	struct infoCard myInfo = {myId, mySock};
+
+
+	push(&start, &myInfo, sizeof(struct infoCard));
+
+
+	printf("Welcome: %s \n", myId);
 	
 	short breakUpFlag = 0;
 	
@@ -175,13 +205,26 @@ void standByMe(int mySock){
 		
 		if (isCommand(buffer)){
 			char command = buffer[5];
-			printf("is comm \n");
+			
 			switch (command){
 				case 'e':
 					breakUpFlag = 1;
 					n = write(mySock, "$", 1);
-					if (n < 0)
-						error("ERROR writing to socket");
+					
+					break;
+				case 'g':
+					printf("printing new id \n");
+					char ss[35] = "";
+					generateId(ss);
+					n = write(mySock, ss, strlen(ss));
+					
+					break;
+
+				case 'p':
+					printf("printing online users \n");
+					printList(start, printInfoCard);
+					n = write(mySock, "printing list on server", 23);
+					
 					break;
 				default:
 					printf("Invalid command!: %c \n", command);
@@ -201,11 +244,43 @@ void standByMe(int mySock){
 //checks for command input. Format: "comm _command symbol_"
 short isCommand(char* input){
 	
-	int s = strlen((const char*)input);
+	int s = strlen(input);
 	
 	if (s >= 7 &&*(input) == 'c' && *(++input) == 'o' && *(++input) == 'm' && *(++input) == 'm' && *(++input) == ' '){
 		return 1;
 	}
 	return 0;
 }
+
+
+int getRandom(int min, int max){
+   return min + rand() / (RAND_MAX / (max - min + 1) + 1);
+}
+
+char* generateId(char* dest){
+	
+	char* randomWord = words[getRandom(0,99)];
+	
+	char randomDigits[3] = {digits[getRandom(0,9)],digits[getRandom(0,9)],'\0'};
+
+	
+
+
+	strcat(dest, randomWord);
+	strcat(dest, randomDigits);
+
+	return dest;
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
