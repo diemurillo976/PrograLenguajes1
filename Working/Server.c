@@ -5,6 +5,8 @@
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <signal.h>
+#include <string.h>
 
 struct infoCard{
 	char* userId;
@@ -13,12 +15,12 @@ struct infoCard{
 };
 
 
-struct UserNode
+struct Node
 { 
     // Any data type can be stored in this node 
     void  *data; 
   
-    struct UserNode *next; 
+    struct Node *next; 
 }; 
 
 /* A linked list node */
@@ -55,7 +57,7 @@ void printList(struct Node *node, void (*fptr)(void *))
     } 
 } 
 
-void remove(struct Node** head_ref, void  *data) 
+void removeNode(struct Node** head_ref, void  *data) 
 { 
    struct Node* actual_temp = *head_ref;
    struct Node* previous_temp;
@@ -64,14 +66,14 @@ void remove(struct Node** head_ref, void  *data)
     { 
         if (actual_temp->data == data){
         	if (actual_temp == *head_ref){
-        		*head_ref = temp->next;   // Changed head 
-		        free(temp);               // free old head 
+        		*head_ref = actual_temp->next;   // Changed head 
+		        free(actual_temp);               // free old head 
 		        
 			}
 			else{
 				previous_temp->next = actual_temp->next; 
   
-    			free(temp);  // Free memory 
+    			free(actual_temp);  // Free memory 
 			}
 			return; 
 		}
@@ -83,7 +85,7 @@ void remove(struct Node** head_ref, void  *data)
 
 
 void standByMe(int);
-short isCommand(int, char*);
+short isCommand(char*);
 void error(const char *msg)
 {
 	perror(msg);
@@ -161,25 +163,29 @@ int main(int argc, char *argv[])
 void standByMe(int mySock){
 	int n;
 	char buffer[256];
-	bzero(buffer,256);
+	
 	short breakUpFlag = 0;
 	
 	while (!breakUpFlag){
-		
+		bzero(buffer,256);
 		n = read(mySock,buffer,255);
 		if (n < 0)
 			error("ERROR reading from socket");
 		printf("Here is the message: %s\n",buffer);
 		
-		if (isCommand(n, buffer)){
-			char command = buffer + 5;
-			
+		if (isCommand(buffer)){
+			char command = buffer[5];
+			printf("is comm \n");
 			switch (command){
 				case 'e':
 					breakUpFlag = 1;
+					n = write(mySock, "$", 1);
+					if (n < 0)
+						error("ERROR writing to socket");
 					break;
 				default:
-					printf("Invalid command!: %d", command);
+					printf("Invalid command!: %c \n", command);
+					n = write(mySock,"Invalid command",15);
 			}
 		}
 		else{
@@ -193,9 +199,13 @@ void standByMe(int mySock){
 }
 
 //checks for command input. Format: "comm _command symbol_"
-short isCommand(int n, char* input){
-	if (n >= 6 &&*(input) == 'c' && *(++input) == 'o' && *(++input) == 'm' && *(++input) == 'm' && *(++input) == ' '){
+short isCommand(char* input){
+	
+	int s = strlen((const char*)input);
+	
+	if (s >= 7 &&*(input) == 'c' && *(++input) == 'o' && *(++input) == 'm' && *(++input) == 'm' && *(++input) == ' '){
 		return 1;
 	}
 	return 0;
 }
+
