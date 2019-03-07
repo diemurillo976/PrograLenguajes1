@@ -8,6 +8,7 @@
 #include <netdb.h> 
 
 void standByYou(int);
+short isCommand(char*);
 
 void error(const char *msg)
 {
@@ -52,26 +53,57 @@ int main(int argc, char *argv[])
 }
 
 void standByYou(int sockfd){
-    short breakUpFlag = 0;
-    char buffer[256];
-    int n;
+	short breakUpFlag = 0;
+	char buffer[256];
+	int n;
+	int pid;
 
-    while(!breakUpFlag){
+	pid = fork();
 
-	    
-	    printf("Please enter the message: ");
-	    bzero(buffer,256);
-	    fgets(buffer,255,stdin);
-	    n = write(sockfd,buffer,strlen(buffer));
-	    if (n < 0) 
-		 error("ERROR writing to socket");
-	    bzero(buffer,256);
-	    n = read(sockfd,buffer,255);
-	    if (n < 0) 
-		 error("ERROR reading from socket");
-	    printf("%s\n",buffer);
+	if(pid < 0){
+		error("ERROR on fork");
+		return;
+	}
 
-	    if (*buffer == '$')
-		breakUpFlag = 1;
-    }
+	while(!breakUpFlag){
+	
+		//forked process that will read
+		if (pid == 0){
+			bzero(buffer,256);
+			n = read(sockfd,buffer,255);
+			if (n < 0) 
+				error("ERROR reading from socket");
+			printf("%s\n",buffer);
+
+			if (*buffer == '$')
+				breakUpFlag = 1;
+
+		}
+		//original process that will write
+		else{
+			printf("Please enter the message: ");
+			bzero(buffer,256);
+			fgets(buffer,255,stdin);
+			n = write(sockfd,buffer,strlen(buffer));
+			if (n < 0) 
+				error("ERROR writing to socket");
+			if(isCommand(buffer)){
+				if (buffer[5] == 'e')
+					breakUpFlag = 1;			
+			}
+		}
+		
+	}
+}
+
+
+//checks for command input. Format: "comm _command symbol_"
+short isCommand(char* input){
+	
+	int s = strlen(input);
+	
+	if (s >= 7 &&*(input) == 'c' && *(++input) == 'o' && *(++input) == 'm' && *(++input) == 'm' && *(++input) == ' '){
+		return 1;
+	}
+	return 0;
 }

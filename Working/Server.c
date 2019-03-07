@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <signal.h>
 #include <string.h>
+#include <pthread.h> 
 
 char* words[100] ={"abecedarian","abracadabra","accoutrements","adagio","aficionado","agita","agog","akimbo","alfresco","aloof","ambrosial","amok","ampersand","anemone","anthropomorphic","antimacassar","aplomb","apogee","apoplectic","appaloosa","apparatus","archipelago","atingle","avuncular","azure","babushka","bailiwick","bafflegab","balderdash","ballistic","bamboozle","bandwagon","barnstorming","beanpole","bedlam","befuddled","bellwether","berserk","bibliopole","bigmouth","bippy","blabbermouth","blatherskite","blindside","blob","blockhead","blowback","blowhard","blubbering","bluestockings","boing","boffo (boffola)","bombastic","bonanza","bonkers","boondocks","boondoggle","borborygmus","bozo","braggadocio","brainstorm","brannigan","breakneck","brouhaha","buckaroo","bucolic","buffoon","bugaboo","bugbear","bulbous","bumbledom","bumfuzzle","bumpkin","bungalow","bunkum","bupkis","burnsides","busybody","cacophony","cahoots","calamity","calliope","candelabra","canoodle","cantankerous","catamaran","catastrophe","catawampus","caterwaul","chatterbox","chichi","chimerical","chimichanga","chitchat","claptrap","clishmaclaver","clodhopper","cockamamie","cockatoo","codswallop"};
 char digits[10] = {'0','1','2','3','4','5','6','7','8','9'};
@@ -99,7 +100,7 @@ void removeNode(struct Node** head_ref, void  *data)
 } 
 
 
-void standByMe(int);
+void* standByMe(void*);
 short isCommand(char*);
 void error(const char *msg)
 {
@@ -110,7 +111,7 @@ void error(const char *msg)
 int main(int argc, char *argv[])
 {
     signal(SIGCHLD,SIG_IGN);//prevents zombie processes
-    
+    srand( (unsigned) time(NULL) * getpid());//reseeds the randomgenerator
 	
     int socketFileDescriptor;
     int newSocketFileDescriptor;
@@ -161,24 +162,20 @@ int main(int argc, char *argv[])
 		newSocketFileDescriptor = accept(socketFileDescriptor, (struct sockaddr *) &cli_addr, &clientAddressLength);
 		if (newSocketFileDescriptor < 0) 
 			error("ERROR on accept");
-		pid = fork();
-		if(pid < 0)
-			error("ERROR on fork");
-		if(pid == 0){
-			close(socketFileDescriptor);
-			standByMe(newSocketFileDescriptor);
-			exit(0);
-		}
-		else
-			close(newSocketFileDescriptor);
+
+		
+		pthread_t thread_id;
+		pthread_create(&thread_id, NULL, standByMe, &newSocketFileDescriptor); 
+		pthread_detach(thread_id);
 	}
 	close(socketFileDescriptor);
 	return 0;
 }
 
-void standByMe(int mySock){
+void* standByMe(void* vargp){
+	int mySock = *(int*)vargp;
 
-	srand(getpid());//reseeds the randomgenerator
+	
 
 	int n;
 	char buffer[256];
@@ -193,6 +190,7 @@ void standByMe(int mySock){
 
 
 	printf("Welcome: %s \n", myId);
+	//n = write(mySock, "Welcome", 7);
 	
 	short breakUpFlag = 0;
 	
@@ -224,6 +222,13 @@ void standByMe(int mySock){
 					printf("printing online users \n");
 					printList(start, printInfoCard);
 					n = write(mySock, "printing list on server", 23);
+					
+					break;
+
+				case 's':
+					printf("writing to socket %d \n", buffer[7]-'0');
+					
+					n = write(buffer[7]-'0', "que perro", 9);
 					
 					break;
 				default:
