@@ -9,6 +9,7 @@
 #include <string.h>
 #include <pthread.h> 
 #include <sys/mman.h>
+#include <arpa/inet.h>
 
 char* words[100] ={"abecedarian","abracadabra","accoutrements","adagio","aficionado","agita","agog","akimbo","alfresco","aloof","ambrosial","amok","ampersand","anemone","anthropomorphic","antimacassar","aplomb","apogee","apoplectic","appaloosa","apparatus","archipelago","atingle","avuncular","azure","babushka","bailiwick","bafflegab","balderdash","ballistic","bamboozle","bandwagon","barnstorming","beanpole","bedlam","befuddled","bellwether","berserk","bibliopole","bigmouth","bippy","blabbermouth","blatherskite","blindside","blob","blockhead","blowback","blowhard","blubbering","bluestockings","boing","boffo (boffola)","bombastic","bonanza","bonkers","boondocks","boondoggle","borborygmus","bozo","braggadocio","brainstorm","brannigan","breakneck","brouhaha","buckaroo","bucolic","buffoon","bugaboo","bugbear","bulbous","bumbledom","bumfuzzle","bumpkin","bungalow","bunkum","bupkis","burnsides","busybody","cacophony","cahoots","calamity","calliope","candelabra","canoodle","cantankerous","catamaran","catastrophe","catawampus","caterwaul","chatterbox","chichi","chimerical","chimichanga","chitchat","claptrap","clishmaclaver","clodhopper","cockamamie","cockatoo","codswallop"};
 char digits[10] = {'0','1','2','3','4','5','6','7','8','9'};
@@ -40,8 +41,9 @@ void addOnlineUser(struct infoCard* info, struct sockaddr_in* address){
 		if((*(users+i)).online == 0){
 			strcpy((*(users+i)).info.userId, (*info).userId);
 			(*(users+i)).info.socket = (*info).socket;
-			memcpy(&((*(users+i)).addr),(struct sockaddr*) &address,
-    				sizeof(struct sockaddr_in));
+			//memcpy(&((*(users+i)).addr), &address,
+    				//sizeof(struct sockaddr_in));
+			(*(users+i)).addr = *address;
 			(*(users+i)).online = 1;
 			return;
 		}
@@ -74,7 +76,7 @@ void printOnlineUsers(){
 	}
 }
 
-void standByMe(int, char*);
+void standByMe(int, char*, int);
 short isCommand(char*);
 void error(const char *msg)
 {
@@ -91,16 +93,17 @@ int main(int argc, char *argv[])
 	int i;
 	for (i = 0; i < 100; i++){
 		(*(users+i)).online = 0;	
-			
+		bzero((char *) &((*(users+i)).addr), sizeof((*(users+i)).addr));
 	}
     
 	expe = malloc(sizeof(int));
     int socketFileDescriptor;
+	int socketUDP;
     int newSocketFileDescriptor;
     int portNumber; //Port number on which the server accepts connections
     int pid;
     socklen_t clientAddressLength; //size of the address of the client
-
+	struct sockaddr_in servUDP_addr;
     struct sockaddr_in serv_addr, cli_addr; //Direccion del servidor y del cliente
     int n;	//return value for the read() and write() calls
 	
@@ -108,23 +111,41 @@ int main(int argc, char *argv[])
     	fprintf(stderr,"ERROR, no port provided\n");
         exit(1);
     }
+
+	socketUDP = socket(AF_INET, SOCK_DGRAM, 0); 
+    if (socketUDP < 0) 
+       error("ERROR opening UDP server socket");
+
     socketFileDescriptor = socket(AF_INET, SOCK_STREAM, 0); //creates a new socket
     if (socketFileDescriptor < 0) 
        error("ERROR opening socket");
 	
+	bzero((char *) &servUDP_addr, sizeof(servUDP_addr));
     bzero((char *) &serv_addr, sizeof(serv_addr)); //sets all values in buffer to 0. Initializes serv_addr to zeros
     portNumber = atoi(argv[1]); //converts the port passed as argument to an integer
+	
 	
 	//Setting parametes of the struct sockaddr_in
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = htons(portNumber); //IP address of the host
+
+	servUDP_addr.sin_family = AF_INET;
+    servUDP_addr.sin_addr.s_addr = INADDR_ANY;
+    servUDP_addr.sin_port = htons(portNumber + 1); 
+
 	
 	//bind() = binds a socket to an address, assings a name to an unnamed socket. Return 1 on success
 	//The address of the current host and port number on which the server will run
 	//3 arguments: socket file descriptor, address to which is bound, size of the address to which is bound
     if (bind(socketFileDescriptor, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
              error("ERROR on binding");
+
+	if (bind(socketUDP, (struct sockaddr *) &servUDP_addr, sizeof(servUDP_addr)) < 0) 
+             error("ERROR on binding UDP server");
+
+	 
+
 	
 	//listen() = allows the process to listen on the socket for connections
 	//2 arguments: socket file descriptor, number of connections that can be waiting while the process is handling a particular connection
@@ -145,10 +166,7 @@ int main(int argc, char *argv[])
 		newSocketFileDescriptor = accept(socketFileDescriptor, (struct sockaddr *) &cli_addr, &clientAddressLength);
 		if (newSocketFileDescriptor < 0) 
 			error("ERROR on accept");
-
-struct sockaddr_in addresss;
-    socklen_t addresss_size = sizeof(struct sockaddr_in);
-    int res = getpeername(newSocketFileDescriptor, (struct sockaddr *)&addresss, &addresss_size);
+		
 
 		char* myId = malloc( (size_t)35 );
 		generateId(myId);
@@ -157,7 +175,21 @@ struct sockaddr_in addresss;
 		strcpy(myInfo.userId,myId);
 		myInfo.socket = newSocketFileDescriptor;
 
-		addOnlineUser(&myInfo, &addresss);
+		char tempBuf[5]; 
+     
+		int lenUDP; 
+		recvfrom(socketUDP, (char *)tempBuf, 256,  
+		            MSG_WAITALL, ( struct sockaddr *) &cli_addr, 
+		            &lenUDP); 
+		
+		printf("UDP client socket connected\n"); 
+		int lene=20;
+		char buffere[lene];
+
+		inet_ntop(AF_INET, &(cli_addr.sin_addr), buffere, lene);
+		printf("address:%s\n",buffere);
+
+		addOnlineUser(&myInfo, &cli_addr);
 
 		*expe = newSocketFileDescriptor;
 		pid = fork();
@@ -165,7 +197,7 @@ struct sockaddr_in addresss;
 			error("ERROR on fork");
 		if(pid == 0){
 			//close(socketFileDescriptor);
-			standByMe(newSocketFileDescriptor, myId);
+			standByMe(newSocketFileDescriptor, myId, socketUDP);
 			exit(0);
 		}
 		//else
@@ -175,7 +207,7 @@ struct sockaddr_in addresss;
 	return 0;
 }
 
-void standByMe(int mySock, char* myId){
+void standByMe(int mySock, char* myId, int sockUDP){
 
 	//srand(getpid());//reseeds the randomgenerator
 
@@ -225,20 +257,27 @@ void standByMe(int mySock, char* myId){
 					break;
 
 				case 's':
+					
 					printf("writing to socket %d :%d \n", buffer[7]-'0', (*(users+(buffer[7]-'0'))).addr.sin_family);
-						
-					int tempSocket = socket(AF_INET, SOCK_STREAM, 0);
-					if (tempSocket < 0) 
-						error("ERROR on accept \n");
+					char* hello = "que perro";
+					int lene=20;
+					char buffere[20];
+					
+					inet_ntop(AF_INET, &((*(users+(buffer[7]-'0'))).addr.sin_addr), buffere, lene);
+					printf("address:%s %d\n",buffere,(int) strlen(hello));
+					
 
-					socklen_t s = sizeof((*(users+(buffer[7]-'0'))).addr);
-					if (connect(tempSocket, (struct sockaddr *) &((*(users+(buffer[7]-'0'))).addr),
-       					s) < 0) 
-        					error("ERROR connecting \n");
+					int success = sendto(sockUDP, (const char *)hello, 9,  
+					   MSG_CONFIRM, (const struct sockaddr *) &((*(users+(buffer[7]-'0'))).addr), 
+						  sizeof((*(users+(buffer[7]-'0'))).addr));
+
+					if (success == -1)
+						printf("error sending message\n");
+					else
+						printf("message sent\n");
 					
+					//n = write(tempSocket, "que perro", 9);
 					
-					n = write(tempSocket, "que perro", 9);
-					close(tempSocket);
 					break;
 				default:
 					printf("Invalid command!: %c \n", command);

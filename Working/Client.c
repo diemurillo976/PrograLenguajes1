@@ -6,8 +6,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
+#include <signal.h>
+#include <arpa/inet.h>
 
-void standByYou(int);
+void standByYou(int, struct sockaddr_in*, int);
+void standByThem(int, struct sockaddr_in*);
 short isCommand(char*);
 
 void error(const char *msg)
@@ -46,17 +49,44 @@ int main(int argc, char *argv[])
         error("ERROR connecting");
 
 
-    standByYou(sockfd);
+    int socialSocket = socket(AF_INET, SOCK_DGRAM, 0);
+	char *hello = "Hel";
+	struct sockaddr_in     servUDP; 
+
+	servUDP.sin_family = AF_INET; 
+    servUDP.sin_port = htons(portno + 1); 
+    bcopy((char *)server->h_addr, 
+         (char *)&servUDP.sin_addr.s_addr,
+         server->h_length);
+
+	
+	int n, len; 
+    
+    sendto(socialSocket, (const char *)hello, strlen(hello), 
+        MSG_CONFIRM, (const struct sockaddr *) &servUDP,  
+            sizeof(servUDP)); 
+    printf("UDP message sent.\n"); 
+          
+  	standByYou(sockfd, &servUDP, socialSocket);
 
     close(sockfd);
     return 0;
 }
 
-void standByYou(int sockfd){
+void standByYou(int sockfd, struct sockaddr_in* serv_addr, int sockUDP){
 	short breakUpFlag = 0;
 	char buffer[256];
 	int n;
 	int pid;
+	int thirdSonId;
+
+	pid = fork();
+	if (pid == 0){
+		thirdSonId = getpid();
+		standByThem(sockUDP, serv_addr);
+	}
+
+	
 
 	pid = fork();
 
@@ -69,31 +99,45 @@ void standByYou(int sockfd){
 	
 		//forked process that will read
 		if (pid == 0){
-			bzero(buffer,256);
-			n = read(sockfd,buffer,255);
-			if (n < 0) 
-				error("ERROR reading from socket");
-			printf("%s\n",buffer);
-
-			if (*buffer == '$')
-				breakUpFlag = 1;
+			
 
 		}
 		//original process that will write
 		else{
-			printf("Please enter the message: ");
+			//printf("Please enter the message: ");
 			bzero(buffer,256);
 			fgets(buffer,255,stdin);
 			n = write(sockfd,buffer,strlen(buffer));
 			if (n < 0) 
 				error("ERROR writing to socket");
 			if(isCommand(buffer)){
-				if (buffer[5] == 'e')
-					breakUpFlag = 1;			
+				if (buffer[5] == 'e'){
+					kill(thirdSonId,SIGKILL);
+					breakUpFlag = 1;	
+				}		
 			}
 		}
 		
 	}
+}
+
+void standByThem(int socialSocket, struct sockaddr_in* servaddr){
+	
+	char buffer[256]; 
+	int n, len; 
+      
+    while(1){
+		printf("standbythem\n");
+		bzero(buffer,256);
+		n = recvfrom(socialSocket, (char *)buffer, 9,  
+		            MSG_WAITALL, (struct sockaddr *) &servaddr, 
+		            &len); 
+		buffer[n] = '\0'; 
+		printf("Server %d : %s\n", n, buffer); 
+
+	}
+
+	
 }
 
 
