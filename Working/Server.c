@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <string.h>
 #include <pthread.h> 
+#include <sys/mman.h>
 
 char* words[100] ={"abecedarian","abracadabra","accoutrements","adagio","aficionado","agita","agog","akimbo","alfresco","aloof","ambrosial","amok","ampersand","anemone","anthropomorphic","antimacassar","aplomb","apogee","apoplectic","appaloosa","apparatus","archipelago","atingle","avuncular","azure","babushka","bailiwick","bafflegab","balderdash","ballistic","bamboozle","bandwagon","barnstorming","beanpole","bedlam","befuddled","bellwether","berserk","bibliopole","bigmouth","bippy","blabbermouth","blatherskite","blindside","blob","blockhead","blowback","blowhard","blubbering","bluestockings","boing","boffo (boffola)","bombastic","bonanza","bonkers","boondocks","boondoggle","borborygmus","bozo","braggadocio","brainstorm","brannigan","breakneck","brouhaha","buckaroo","bucolic","buffoon","bugaboo","bugbear","bulbous","bumbledom","bumfuzzle","bumpkin","bungalow","bunkum","bupkis","burnsides","busybody","cacophony","cahoots","calamity","calliope","candelabra","canoodle","cantankerous","catamaran","catastrophe","catawampus","caterwaul","chatterbox","chichi","chimerical","chimichanga","chitchat","claptrap","clishmaclaver","clodhopper","cockamamie","cockatoo","codswallop"};
 char digits[10] = {'0','1','2','3','4','5','6','7','8','9'};
@@ -16,91 +17,64 @@ int getRandom(int,int);
 char* generateId(char*);
 
 struct infoCard{
-	char* userId;
+	char userId[40];
 	int   socket;
 	
 };
 
-
-struct Node
-{ 
-    // Any data type can be stored in this node 
-    void  *data; 
-  
-    struct Node *next; 
-}; 
+struct user{
+	struct infoCard info;
+	short online;
+	struct sockaddr_in addr;
+};
 
 
-struct Node *start = NULL; 
 
-/* A linked list node */
-/* Function to add a node at the beginning of Linked List. 
-   This function expects a pointer to the data to be added 
-   and size of the data type */
-void push(struct Node** head_ref, void *new_data, size_t data_size) 
-{ 
-    // Allocate memory for node 
-    struct Node* new_node = (struct Node*)malloc(sizeof(struct Node)); 
-  
-    new_node->data  = malloc(data_size); 
-    new_node->next = (*head_ref); 
-  
-    // Copy contents of new_data to newly allocated memory. 
-    // Assumption: char takes 1 byte. 
-    int i; 
-    for (i=0; i<data_size; i++) 
-        *(char *)(new_node->data + i) = *(char *)(new_data + i); 
-  
-    // Change head pointer as new node is added at the beginning 
-    (*head_ref)    = new_node; 
-} 
-  
-/* Function to print nodes in a given linked list. fpitr is used 
-   to access the function to be used for printing current node data. 
-   Note that different data types need different specifier in printf() */
-void printList(struct Node *node, void (*fptr)(void *)) 
-{ 
-    while (node != NULL) 
-    { 
-        (*fptr)(node->data); 
-        node = node->next; 
-    } 
-} 
 
-void printInfoCard(void *n) 
-{ 
-   struct infoCard * card = (struct infoCard *)n;
-   printf("socket: %d userId: %s \n", (*card).socket, (*card).userId); 
-} 
+int *expe = NULL;
+struct user* users = NULL;
 
-void removeNode(struct Node** head_ref, void  *data) 
-{ 
-   struct Node* actual_temp = *head_ref;
-   struct Node* previous_temp;
-   
-   while(actual_temp != NULL);
-    { 
-        if (actual_temp->data == data){
-        	if (actual_temp == *head_ref){
-        		*head_ref = actual_temp->next;   // Changed head 
-		        free(actual_temp);               // free old head 
-		        
-			}
-			else{
-				previous_temp->next = actual_temp->next; 
-  
-    			free(actual_temp);  // Free memory 
-			}
-			return; 
+void addOnlineUser(struct infoCard* info, struct sockaddr_in* address){
+	int i;
+	for (i = 0; i < 100; i++){
+		if((*(users+i)).online == 0){
+			strcpy((*(users+i)).info.userId, (*info).userId);
+			(*(users+i)).info.socket = (*info).socket;
+			memcpy(&((*(users+i)).addr),(struct sockaddr*) &address,
+    				sizeof(struct sockaddr_in));
+			(*(users+i)).online = 1;
+			return;
 		}
-        
-        previous_temp = actual_temp;
-        actual_temp = actual_temp->next;
-    }
-} 
+	}
+}
 
+struct user* findOnlineUser(char* userId){
+	int i;
+	for (i = 0; i < 100; i++){
+		if((*(users+i)).online == 1 && strcmp((*(users+i)).info.userId, userId) == 0){
+			
+			return users+i;
+		}
+	}
+}
 
-void* standByMe(void*);
+void removeOnlineUser(char* userId){
+
+	struct user* downUser = findOnlineUser(userId);
+	
+	(*(downUser)).online = 0;
+}
+
+void printOnlineUsers(){
+	int i;
+	for (i = 0; i < 100; i++){
+		if((*(users+i)).online == 1){
+			printf("user %s %d \n",(*(users+i)).info.userId,(*(users+i)).info.socket);
+		}
+	}
+}
+
+void standByMe(int, char*);
 short isCommand(char*);
 void error(const char *msg)
 {
@@ -112,7 +86,15 @@ int main(int argc, char *argv[])
 {
     signal(SIGCHLD,SIG_IGN);//prevents zombie processes
     srand( (unsigned) time(NULL) * getpid());//reseeds the randomgenerator
-	
+    
+    users = mmap(NULL, sizeof(struct user)*100, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+	int i;
+	for (i = 0; i < 100; i++){
+		(*(users+i)).online = 0;	
+			
+	}
+    
+	expe = malloc(sizeof(int));
     int socketFileDescriptor;
     int newSocketFileDescriptor;
     int portNumber; //Port number on which the server accepts connections
@@ -159,38 +141,54 @@ int main(int argc, char *argv[])
 
 	while(1)
 	{
+		
 		newSocketFileDescriptor = accept(socketFileDescriptor, (struct sockaddr *) &cli_addr, &clientAddressLength);
 		if (newSocketFileDescriptor < 0) 
 			error("ERROR on accept");
 
-		
-		pthread_t thread_id;
-		pthread_create(&thread_id, NULL, standByMe, &newSocketFileDescriptor); 
-		pthread_detach(thread_id);
+struct sockaddr_in addresss;
+    socklen_t addresss_size = sizeof(struct sockaddr_in);
+    int res = getpeername(newSocketFileDescriptor, (struct sockaddr *)&addresss, &addresss_size);
+
+		char* myId = malloc( (size_t)35 );
+		generateId(myId);
+
+		struct infoCard myInfo;
+		strcpy(myInfo.userId,myId);
+		myInfo.socket = newSocketFileDescriptor;
+
+		addOnlineUser(&myInfo, &addresss);
+
+		*expe = newSocketFileDescriptor;
+		pid = fork();
+		if(pid < 0)
+			error("ERROR on fork");
+		if(pid == 0){
+			//close(socketFileDescriptor);
+			standByMe(newSocketFileDescriptor, myId);
+			exit(0);
+		}
+		//else
+			//close(newSocketFileDescriptor);
 	}
 	close(socketFileDescriptor);
 	return 0;
 }
 
-void* standByMe(void* vargp){
-	int mySock = *(int*)vargp;
+void standByMe(int mySock, char* myId){
+
+	//srand(getpid());//reseeds the randomgenerator
 
 	
 
 	int n;
 	char buffer[256];
 
-	char* myId = malloc( (size_t)35 );
-	generateId(myId);
-
-	struct infoCard myInfo = {myId, mySock};
+	
 
 
-	push(&start, &myInfo, sizeof(struct infoCard));
-
-
-	printf("Welcome: %s \n", myId);
-	//n = write(mySock, "Welcome", 7);
+	printf("Welcome: %s %d \n", myId, *expe);
+	//myId = write(mySock, "Welcome", 7);
 	
 	short breakUpFlag = 0;
 	
@@ -207,11 +205,12 @@ void* standByMe(void* vargp){
 			switch (command){
 				case 'e':
 					breakUpFlag = 1;
+					removeOnlineUser(myId);
 					n = write(mySock, "$", 1);
 					
 					break;
 				case 'g':
-					printf("printing new id \n");
+					printf("printing new id %d \n", *expe);
 					char ss[35] = "";
 					generateId(ss);
 					n = write(mySock, ss, strlen(ss));
@@ -220,16 +219,26 @@ void* standByMe(void* vargp){
 
 				case 'p':
 					printf("printing online users \n");
-					printList(start, printInfoCard);
+					printOnlineUsers();
 					n = write(mySock, "printing list on server", 23);
 					
 					break;
 
 				case 's':
-					printf("writing to socket %d \n", buffer[7]-'0');
+					printf("writing to socket %d :%d \n", buffer[7]-'0', (*(users+(buffer[7]-'0'))).addr.sin_family);
+						
+					int tempSocket = socket(AF_INET, SOCK_STREAM, 0);
+					if (tempSocket < 0) 
+						error("ERROR on accept \n");
+
+					socklen_t s = sizeof((*(users+(buffer[7]-'0'))).addr);
+					if (connect(tempSocket, (struct sockaddr *) &((*(users+(buffer[7]-'0'))).addr),
+       					s) < 0) 
+        					error("ERROR connecting \n");
 					
-					n = write(buffer[7]-'0', "que perro", 9);
 					
+					n = write(tempSocket, "que perro", 9);
+					close(tempSocket);
 					break;
 				default:
 					printf("Invalid command!: %c \n", command);
@@ -243,7 +252,7 @@ void* standByMe(void* vargp){
 		}
 		
 	}
-	
+	close(mySock);
 }
 
 //checks for command input. Format: "comm _command symbol_"
@@ -276,6 +285,7 @@ char* generateId(char* dest){
 
 	return dest;
 }
+
 
 
 
