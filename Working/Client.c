@@ -9,8 +9,7 @@
 #include <signal.h>
 #include <arpa/inet.h>
 
-void standByYou(int, struct sockaddr_in*, int);
-void standByThem(int, struct sockaddr_in*);
+void standByYou(struct sockaddr_in*, int);
 short isCommand(char*);
 int getPortNumber();
 
@@ -22,73 +21,58 @@ void error(const char *msg)
 
 int main(int argc, char *argv[])
 {
-
-    int sockfd, portno;
-    struct sockaddr_in serv_addr;
+    int portno;
     struct hostent *server;
 
-    
     if (argc < 2) {
        fprintf(stderr,"usage %s hostname\n", argv[0]);
        exit(0);
     }
+	
     portno = getPortNumber();
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) 
-        error("ERROR opening socket");
     server = gethostbyname(argv[1]);
+	
     if (server == NULL) {
         fprintf(stderr,"ERROR, no such host\n");
         exit(0);
     }
-    bzero((char *) &serv_addr, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr, 
-         (char *)&serv_addr.sin_addr.s_addr,
-         server->h_length);
-    serv_addr.sin_port = htons(portno);
-    if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) 
-        error("ERROR connecting");
-
-
+	
     int socialSocket = socket(AF_INET, SOCK_DGRAM, 0);
 	char *hello = "Hel";
-	struct sockaddr_in     servUDP; 
+	struct sockaddr_in     servUDP, servUDPGeneral; 
 
+	bzero((char *) &servUDP, sizeof(servUDP));
 	servUDP.sin_family = AF_INET; 
-    servUDP.sin_port = htons(portno + 1); 
+    servUDP.sin_port = htons(portno); 
     bcopy((char *)server->h_addr, 
          (char *)&servUDP.sin_addr.s_addr,
          server->h_length);
 
+	bzero((char *) &servUDPGeneral, sizeof(servUDPGeneral));
+	servUDPGeneral.sin_family = AF_INET; 
+    servUDPGeneral.sin_port = htons(portno + 1); 
+    bcopy((char *)server->h_addr, 
+         (char *)&servUDPGeneral.sin_addr.s_addr,
+         server->h_length);
 	
 	int n, len; 
     
     sendto(socialSocket, (const char *)hello, strlen(hello), 
-        MSG_CONFIRM, (const struct sockaddr *) &servUDP,  
+        	MSG_CONFIRM, (const struct sockaddr *) &servUDP,  
             sizeof(servUDP)); 
+	
     printf("UDP message sent.\n"); 
-          
-  	standByYou(sockfd, &servUDP, socialSocket);
+  	standByYou(&servUDPGeneral, socialSocket);
 
-    close(sockfd);
     return 0;
 }
 
-void standByYou(int sockfd, struct sockaddr_in* serv_addr, int sockUDP){
+void standByYou(struct sockaddr_in* serv_addr, int sockUDP){
 	short breakUpFlag = 0;
 	char buffer[256];
-	int n;
+	int len, n;
 	int pid;
 	int thirdSonId;
-
-	pid = fork();
-	if (pid == 0){
-		thirdSonId = getpid();
-		standByThem(sockUDP, serv_addr);
-	}
-
-	
 
 	pid = fork();
 
@@ -96,20 +80,26 @@ void standByYou(int sockfd, struct sockaddr_in* serv_addr, int sockUDP){
 		error("ERROR on fork");
 		return;
 	}
+	
+	if (pid == 0){
+		thirdSonId = getpid();
+		
+	}
 
 	while(!breakUpFlag){
-	
 		//forked process that will read
 		if (pid == 0){
-			
-
+			bzero(buffer,256);
+			n = recvfrom(sockUDP, (char *)buffer, 256, MSG_WAITALL, (struct sockaddr *) serv_addr, &len); 
+			buffer[n] = '\0'; 
+			//printf("Server %d : %s\n", n, buffer); 
 		}
 		//original process that will write
 		else{
 			//printf("Please enter the message: ");
 			bzero(buffer,256);
 			fgets(buffer,255,stdin);
-			n = write(sockfd,buffer,strlen(buffer));
+			int n = sendto(sockUDP,(const char *) buffer, 255, MSG_CONFIRM, (const struct sockaddr *) serv_addr, sizeof(*serv_addr));
 			if (n < 0) 
 				error("ERROR writing to socket");
 			if(isCommand(buffer)){
@@ -123,29 +113,8 @@ void standByYou(int sockfd, struct sockaddr_in* serv_addr, int sockUDP){
 	}
 }
 
-void standByThem(int socialSocket, struct sockaddr_in* servaddr){
-	
-	char buffer[256]; 
-	int n, len; 
-      
-    while(1){
-		printf("standbythem\n");
-		bzero(buffer,256);
-		n = recvfrom(socialSocket, (char *)buffer, 9,  
-		            MSG_WAITALL, (struct sockaddr *) &servaddr, 
-		            &len); 
-		buffer[n] = '\0'; 
-		printf("Server %d : %s\n", n, buffer); 
-
-	}
-
-	
-}
-
-
 //checks for command input. Format: "comm _command symbol_"
 short isCommand(char* input){
-	
 	int s = strlen(input);
 	
 	if (s >= 7 &&*(input) == 'c' && *(++input) == 'o' && *(++input) == 'm' && *(++input) == 'm' && *(++input) == ' '){
@@ -154,14 +123,10 @@ short isCommand(char* input){
 	return 0;
 }
 
-//returns the port number from a file
-
 int getPortNumber(){
-	
 	int port = 0;
 	int i = 0;
 	int e = 0;
-	
 	FILE *configFile = fopen("portNumber.ini","r");
 	
 	if(configFile == NULL){
@@ -172,8 +137,8 @@ int getPortNumber(){
 	char ct[50];
 	bzero((char *)&ct[0], sizeof(ct));
 	fscanf(configFile,"%s",(char *)&ct[0]);
-	
 	char *c = &ct[0];
+	fclose(configFile);
 	
 	while(*(c+i) == 'p' || *(c+i) == 'o' || *(c+i) == 'r' || *(c+i) == 't' || *(c+i) == 'N' ||
 		  *(c+i) == 'u' || *(c+i) == 'm' || *(c+i) == 'b' || *(c+i) == 'e' || *(c+i) == 'r' ||
@@ -189,17 +154,5 @@ int getPortNumber(){
 	}
 	
 	port = atoi(&portN[0]);
-		
-	fclose(configFile);
-	
 	return port;
 }
-
-
-
-
-
-
-
-
-
