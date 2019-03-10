@@ -12,6 +12,7 @@
 void standByYou(int, struct sockaddr_in*, int);
 void standByThem(int, struct sockaddr_in*);
 short isCommand(char*);
+int getPortNumber();
 
 void error(const char *msg)
 {
@@ -21,16 +22,17 @@ void error(const char *msg)
 
 int main(int argc, char *argv[])
 {
+
     int sockfd, portno;
     struct sockaddr_in serv_addr;
     struct hostent *server;
 
     
-    if (argc < 3) {
-       fprintf(stderr,"usage %s hostname port\n", argv[0]);
+    if (argc < 2) {
+       fprintf(stderr,"usage %s hostname\n", argv[0]);
        exit(0);
     }
-    portno = atoi(argv[2]);
+    portno = getPortNumber();
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) 
         error("ERROR opening socket");
@@ -151,3 +153,53 @@ short isCommand(char* input){
 	}
 	return 0;
 }
+
+//returns the port number from a file
+
+int getPortNumber(){
+	
+	int port = 0;
+	int i = 0;
+	int e = 0;
+	
+	FILE *configFile = fopen("portNumber.ini","r");
+	
+	if(configFile == NULL){
+		printf("ERROR opening file\n");
+		exit(-1);
+	}
+	
+	char ct[50];
+	bzero((char *)&ct[0], sizeof(ct));
+	fscanf(configFile,"%s",(char *)&ct[0]);
+	
+	char *c = &ct[0];
+	
+	while(*(c+i) == 'p' || *(c+i) == 'o' || *(c+i) == 'r' || *(c+i) == 't' || *(c+i) == 'N' ||
+		  *(c+i) == 'u' || *(c+i) == 'm' || *(c+i) == 'b' || *(c+i) == 'e' || *(c+i) == 'r' ||
+		  *(c+i) == '=')
+		i++;
+		
+	char portN[7];
+	
+	while(c[i] != '\0'){
+		portN[e] = c[i];
+		i++;
+		e++;
+	}
+	
+	port = atoi(&portN[0]);
+		
+	fclose(configFile);
+	
+	return port;
+}
+
+
+
+
+
+
+
+
+

@@ -78,13 +78,14 @@ void printOnlineUsers(){
 
 void standByMe(int, char*, int);
 short isCommand(char*);
+int getPortNumber();
 void error(const char *msg)
 {
 	perror(msg);
     exit(1);
 }
 
-int main(int argc, char *argv[])
+int main()
 {
     signal(SIGCHLD,SIG_IGN);//prevents zombie processes
     srand( (unsigned) time(NULL) * getpid());//reseeds the randomgenerator
@@ -106,11 +107,6 @@ int main(int argc, char *argv[])
 	struct sockaddr_in servUDP_addr;
     struct sockaddr_in serv_addr, cli_addr; //Direccion del servidor y del cliente
     int n;	//return value for the read() and write() calls
-	
-    if (argc < 2){
-    	fprintf(stderr,"ERROR, no port provided\n");
-        exit(1);
-    }
 
 	socketUDP = socket(AF_INET, SOCK_DGRAM, 0); 
     if (socketUDP < 0) 
@@ -122,7 +118,7 @@ int main(int argc, char *argv[])
 	
 	bzero((char *) &servUDP_addr, sizeof(servUDP_addr));
     bzero((char *) &serv_addr, sizeof(serv_addr)); //sets all values in buffer to 0. Initializes serv_addr to zeros
-    portNumber = atoi(argv[1]); //converts the port passed as argument to an integer
+    portNumber = getPortNumber(); //converts the port passed as argument to an integer
 	
 	
 	//Setting parametes of the struct sockaddr_in
@@ -203,6 +199,7 @@ int main(int argc, char *argv[])
 		//else
 			//close(newSocketFileDescriptor);
 	}
+	close(newSocketFileDescriptor);
 	close(socketFileDescriptor);
 	return 0;
 }
@@ -325,16 +322,41 @@ char* generateId(char* dest){
 	return dest;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+int getPortNumber(){
+	
+	int port = 0;
+	int i = 0;
+	int e = 0;
+	
+	FILE *configFile = fopen("portNumber.ini","r");
+	
+	if(configFile == NULL){
+		printf("ERROR opening file\n");
+		exit(-1);
+	}
+	
+	char ct[50];
+	bzero((char *)&ct[0], sizeof(ct));
+	fscanf(configFile,"%s",(char *)&ct[0]);
+	
+	char *c = &ct[0];
+	
+	while(*(c+i) == 'p' || *(c+i) == 'o' || *(c+i) == 'r' || *(c+i) == 't' || *(c+i) == 'N' ||
+		  *(c+i) == 'u' || *(c+i) == 'm' || *(c+i) == 'b' || *(c+i) == 'e' || *(c+i) == 'r' ||
+		  *(c+i) == '=')
+		i++;
+		
+	char portN[7];
+	
+	while(c[i] != '\0'){
+		portN[e] = c[i];
+		i++;
+		e++;
+	}
+	
+	port = atoi(&portN[0]);
+		
+	fclose(configFile);
+	
+	return port;
+}
