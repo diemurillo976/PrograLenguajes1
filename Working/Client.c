@@ -22,13 +22,20 @@ void error(const char *msg)
 int main(int argc, char *argv[])
 {
     int portno;
+    char finalUser[50];
     struct hostent *server;
 
     if (argc < 2) {
-       fprintf(stderr,"usage %s hostname\n", argv[0]);
+       fprintf(stderr,"usage: %s hostname\n", argv[0]);
        exit(0);
     }
-	
+    
+    if(argc == 3){
+        strcpy(finalUser, "1");
+        strcat(finalUser, argv[2]);
+    }else
+        strcpy(finalUser, "Nel");
+    
     portno = getPortNumber();
     server = gethostbyname(argv[1]);
 	
@@ -38,7 +45,6 @@ int main(int argc, char *argv[])
     }
 	
     int socialSocket = socket(AF_INET, SOCK_DGRAM, 0);
-	char *hello = "Hel";
 	struct sockaddr_in     servUDP, servUDPGeneral; 
 
 	bzero((char *) &servUDP, sizeof(servUDP));
@@ -57,7 +63,7 @@ int main(int argc, char *argv[])
 	
 	int n, len; 
     
-    sendto(socialSocket, (const char *)hello, strlen(hello), 
+    sendto(socialSocket, (const char *)finalUser, strlen(finalUser), 
         	MSG_CONFIRM, (const struct sockaddr *) &servUDP,  
             sizeof(servUDP)); 
 	

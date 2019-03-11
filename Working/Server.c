@@ -6,7 +6,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <signal.h>
-#include <string.h>
 #include <pthread.h> 
 #include <sys/mman.h>
 #include <arpa/inet.h>
@@ -17,6 +16,8 @@ char digits[10] = {'0','1','2','3','4','5','6','7','8','9'};
 int getRandom(int,int);
 char* generateId(char*);
 int getPortNumber();
+short verifyUserAssignation(char *user);
+char *getUser(char *, char *);
 
 struct infoCard{
 	char userId[40];
@@ -79,11 +80,12 @@ void error(const char *msg)
     exit(1);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     signal(SIGCHLD,SIG_IGN);//prevents zombie processes
     srand( (unsigned) time(NULL) * getpid());//reseeds the randomgenerator
-    
+    short assignUser;
+	
     //reserves shared memory for users array and initializes the array
     users = mmap(NULL, sizeof(struct user)*100, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
 	int i;
@@ -140,16 +142,25 @@ int main()
 
 	while(1)
 	{
-		char tempBuf[5]; 
+		char tempBuf[50]; 
+		bzero((char *) tempBuf,sizeof(tempBuf)); //tempBuf needs to be clean because of possible past users
 		int lenUDP; 
-		recvfrom(socketUDP, (char *)tempBuf, 5,  
+		recvfrom(socketUDP, (char *)tempBuf, 50,  
 		            MSG_WAITALL, ( struct sockaddr *) &cli_addr, 
 		            &lenUDP); 
-		
-		char* myId = malloc( (size_t)35 );
-		generateId(myId);
+		assignUser = verifyUserAssignation(tempBuf);
 		struct infoCard myInfo;
-		strcpy(myInfo.userId,myId);
+		char *myId = malloc( (size_t)50 );
+		if (assignUser){
+			generateId(myId);
+			strcpy(myInfo.userId,myId);
+		}else{
+			char myUser[50];
+			bzero((char *) myUser,sizeof(myUser));
+			myId = getUser(tempBuf, myUser);
+			strcpy(myInfo.userId,myId);
+		}
+		
 		printf("UDP client socket connected\n"); 
 		int lene=20;
 		char buffere[lene];
@@ -312,4 +323,24 @@ int getPortNumber(){
 	
 	port = atoi(&portN[0]);
 	return port;
+}
+
+short verifyUserAssignation(char *user){
+	short i = 1;
+	if (user[0] == '1')
+		i = 0;
+	return i;
+}
+
+char* getUser(char *user, char *myUser){
+	char c = user[1];
+	int i = 1;
+	int e = 0;
+	while (user[i] != '\0'){
+		myUser[e] = user[i];
+		e++;
+		i++;
+	}
+	myUser[e] = user[i];
+	return myUser;
 }
