@@ -98,11 +98,10 @@ void standByYou(struct sockaddr_in* serv_addr, int sockUDP){
 			bzero(buffer,256);
 			n = recvfrom(sockUDP, (char *)buffer, 256, MSG_WAITALL, (struct sockaddr *) serv_addr, &len); 
 			buffer[n] = '\0'; 
-			//printf("Server %d : %s\n", n, buffer); 
+			printf("Server %d : %s\n", n, buffer); 
 		}
 		//original process that will write
 		else{
-			//printf("Please enter the message: ");
 			bzero(buffer,256);
 			fgets(buffer,255,stdin);
 			int n = sendto(sockUDP,(const char *) buffer, 255, MSG_CONFIRM, (const struct sockaddr *) serv_addr, sizeof(*serv_addr));

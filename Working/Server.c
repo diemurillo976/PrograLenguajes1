@@ -6,11 +6,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <signal.h>
-#include <pthread.h> 
 #include <sys/mman.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
-char* words[100] ={"abecedarian","abracadabra","accoutrements","adagio","aficionado","agita","agog","akimbo","alfresco","aloof","ambrosial","amok","ampersand","anemone","anthropomorphic","antimacassar","aplomb","apogee","apoplectic","appaloosa","apparatus","archipelago","atingle","avuncular","azure","babushka","bailiwick","bafflegab","balderdash","ballistic","bamboozle","bandwagon","barnstorming","beanpole","bedlam","befuddled","bellwether","berserk","bibliopole","bigmouth","bippy","blabbermouth","blatherskite","blindside","blob","blockhead","blowback","blowhard","blubbering","bluestockings","boing","boffo (boffola)","bombastic","bonanza","bonkers","boondocks","boondoggle","borborygmus","bozo","braggadocio","brainstorm","brannigan","breakneck","brouhaha","buckaroo","bucolic","buffoon","bugaboo","bugbear","bulbous","bumbledom","bumfuzzle","bumpkin","bungalow","bunkum","bupkis","burnsides","busybody","cacophony","cahoots","calamity","calliope","candelabra","canoodle","cantankerous","catamaran","catastrophe","catawampus","caterwaul","chatterbox","chichi","chimerical","chimichanga","chitchat","claptrap","clishmaclaver","clodhopper","cockamamie","cockatoo","codswallop"};
+char* words[100] ={"abecedarian","abracadabra","accoutrements","adagio","aficionado","agita","agog","akimbo","alfresco","aloof","ambrosial","amok","ampersand","anemone","anthropomorphic","antimacassar","aplomb","apogee","apoplectic","appaloosa","apparatus","archipelago","atingle","avuncular","ayuwoki","babushka","bailiwick","bafflegab","balderdash","ballistic","bamboozle","bandwagon","barnstorming","beanpole","bedlam","befuddled","bellwether","berserk","bibliopole","bigmouth","biliyin","blabbermouth","blatherskite","blindside","blob","blockhead","blowback","blowhard","blubbering","bluestockings","boing","boffo (boffola)","bombastic","bonanza","bonkers","boondocks","boondoggle","borborygmus","bozo","braggadocio","brainstorm","brannigan","breakneck","brouhaha","buckaroo","bucolic","buffoon","bugaboo","bugbear","bulbous","bumbledom","bumfuzzle","bumpkin","bungalow","bunkum","bupkis","uyaje","busybody","cacophony","cahoots","calamity","calliope","candelabra","canoodle","cantankerous","catamaran","catastrophe","catawampus","caterwaul","heehee","chichi","chimerical","chimichanga","chitchat","claptrap","clishmaclaver","clodhopper","cockamamie","cockatoo","codswallop"};
 char digits[10] = {'0','1','2','3','4','5','6','7','8','9'};
 
 int getRandom(int,int);
@@ -18,6 +18,9 @@ char* generateId(char*);
 int getPortNumber();
 short verifyUserAssignation(char *user);
 char *getUser(char *, char *);
+void getUserIdFromMessage(char *, char *);
+void getMessage(char *, char *);
+
 
 struct infoCard{
 	char userId[40];
@@ -103,10 +106,15 @@ int main(int argc, char *argv[])
    
     int n;	//return value for the read() and write() calls
 	
-	socketUDP = socket(AF_INET, SOCK_DGRAM, 0); 
+	if (argc > 1){
+    	fprintf(stderr,"ERROR, port provided\n");
+        exit(1);
+    }
+	
+	socketUDP = socket(AF_INET, SOCK_DGRAM, 0); //Peticiones de conectarse
     if (socketUDP < 0) 
        error("ERROR opening UDP server socket");
-	socketGeneral = socket(AF_INET, SOCK_DGRAM, 0); 
+	socketGeneral = socket(AF_INET, SOCK_DGRAM, 0); //Escuchar cada cliente
     if (socketGeneral < 0) 
        error("ERROR opening general UDP server socket");
 
@@ -139,7 +147,7 @@ int main(int argc, char *argv[])
 	hostname[1023] = '\0';
 	gethostname(hostname, 1023);
 	printf("Hostname: %s\n", hostname);
-
+	
 	while(1)
 	{
 		char tempBuf[50]; 
@@ -197,7 +205,6 @@ void standByMe(char* myId, int sockUDP){
 		if (n < 0)
 			error("ERROR reading from socket");
 			
-		buffer[n] = '\0'; 
 		printf("Here is the message: %s\n",buffer);
 		
 		if (isCommand(buffer)){
@@ -260,11 +267,20 @@ void standByMe(char* myId, int sockUDP){
 			}
 		}
 		else{
-			success = sendto(sockUDP, "I got your message", 18,  
-					   MSG_CONFIRM, (const struct sockaddr *) &cli_addr, 
-						  sizeof(cli_addr));
-			if (n < 0)
-				error("ERROR writing to socket");
+			char userId[20];
+			char message[256];
+			bzero(userId,20);
+			bzero(message,256);
+			getUserIdFromMessage(buffer,userId);
+			getMessage(buffer,message);
+			struct user *usuario = findOnlineUser(userId);
+			success = sendto(sockUDP, (const char *)message,256,
+				  MSG_CONFIRM, (const struct sockaddr *) &((*usuario).addr),
+				  sizeof((*usuario).addr));
+			if (success == -1)
+				printf("error sending message\n");
+			else
+				printf("message sent\n");
 		}
 	}
 }
@@ -289,6 +305,45 @@ char* generateId(char* dest){
 	strcat(dest, randomWord);
 	strcat(dest, randomDigits);
 	return dest;
+}
+
+void getUserIdFromMessage(char *input, char *userId){
+	int i = 0;
+	char *c = input;
+	char *format = strchr(input,':');
+	
+	if(format == NULL){
+		printf("ERROR, wrong message format.\n");
+		error("Usage => username: message\n");
+		return;
+	}
+	else{
+		while(*(c+i) != *format){
+			userId[i] = *(c+i);
+			i++;
+		}
+		userId[i] = '\0';
+		return;
+	}
+}
+
+void getMessage(char *input, char *message){
+	int i = 0;
+	char *format = strchr(input,':');
+	if(format == NULL){
+		printf("ERROR, wrong message format.\n");
+		error("Usage => username: message\n");
+		return;
+	}
+	else{
+		format++;
+		while(*(format+i) != '\0'){
+			message[i] = *(format+i);
+			i++;
+		}
+		message[i] = '\0';
+		return;
+	}
 }
 
 int getPortNumber(){
