@@ -12,6 +12,8 @@
 void standByYou(struct sockaddr_in*, int);
 short isCommand(char*);
 int getPortNumber();
+int getRandom(int,int);
+int verifyMessage(char *);
 
 void error(const char *msg)
 {
@@ -24,6 +26,7 @@ int main(int argc, char *argv[])
     int portno;
     char finalUser[50];
     struct hostent *server;
+    int random;
 
     if (argc < 2) {
        fprintf(stderr,"usage: %s hostname\n", argv[0]);
@@ -67,7 +70,7 @@ int main(int argc, char *argv[])
         	MSG_CONFIRM, (const struct sockaddr *) &servUDP,  
             sizeof(servUDP)); 
 	
-    printf("UDP message sent.\n"); 
+    printf("Connected!.\n"); 
   	standByYou(&servUDPGeneral, socialSocket);
 
     return 0;
@@ -76,9 +79,7 @@ int main(int argc, char *argv[])
 void standByYou(struct sockaddr_in* serv_addr, int sockUDP){
 	short breakUpFlag = 0;
 	char buffer[256];
-	int len, n;
-	int pid;
-	int thirdSonId;
+	int len, n, pid, thirdSonId, rightMessageFormat;
 
 	pid = fork();
 
@@ -98,23 +99,28 @@ void standByYou(struct sockaddr_in* serv_addr, int sockUDP){
 			bzero(buffer,256);
 			n = recvfrom(sockUDP, (char *)buffer, 256, MSG_WAITALL, (struct sockaddr *) serv_addr, &len); 
 			buffer[n] = '\0'; 
-			printf("Server %d : %s\n", n, buffer); 
+			printf(">%s", buffer); 
 		}
 		//original process that will write
 		else{
 			bzero(buffer,256);
 			fgets(buffer,255,stdin);
-			int n = sendto(sockUDP,(const char *) buffer, 255, MSG_CONFIRM, (const struct sockaddr *) serv_addr, sizeof(*serv_addr));
-			if (n < 0) 
-				error("ERROR writing to socket");
-			if(isCommand(buffer)){
-				if (buffer[5] == 'e'){
-					kill(thirdSonId,SIGKILL);
-					breakUpFlag = 1;	
-				}		
-			}
+            rightMessageFormat = verifyMessage(buffer);
+            if(rightMessageFormat){
+                if(isCommand(buffer)){
+                    if (buffer[5] == 'e'){
+                        kill(thirdSonId,SIGKILL);
+                        breakUpFlag = 1;	
+                    }
+                }
+                int n = sendto(sockUDP,(const char *) buffer, 255, MSG_CONFIRM, (const struct sockaddr *) serv_addr, sizeof(*serv_addr));
+                if (n < 0) 
+                    error("ERROR writing to socket");
+            }else{
+                printf("ERROR, wrong message format.\n");
+                printf("Usage => username: message\n");   
+            }
 		}
-		
 	}
 }
 
@@ -160,4 +166,20 @@ int getPortNumber(){
 	
 	port = atoi(&portN[0]);
 	return port;
+}
+
+int getRandom(int min, int max){
+   return min + rand() / (RAND_MAX / (max - min + 1) + 1);
+}
+
+int verifyMessage(char *input){
+	char *format = strchr(input,':');
+    if(isCommand(input))
+        return 1;
+    else{
+        if(format == NULL)
+            return 0;
+        else
+            return 1;
+    }
 }
