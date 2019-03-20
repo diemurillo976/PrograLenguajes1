@@ -15,7 +15,7 @@ char digits[10] = {'0','1','2','3','4','5','6','7','8','9'};
 
 int getRandom(int,int);
 char* generateId(char*);
-char* generateColor(char*);
+unsigned short generateColor();//char* generateColor(char*);
 int getPortNumber();
 short verifyUserAssignation(char *user);
 char *getUser(char *, char *);
@@ -25,7 +25,7 @@ void getMessage(char *, char *);
 
 struct infoCard {
 	char userId[40];
-	char colorId[1];
+	unsigned short colorId;//char colorId[1];
 };
 
 struct user {
@@ -41,7 +41,7 @@ void addOnlineUser(struct infoCard* info, struct sockaddr_in* address) {
 	for (i = 0; i < 100; i++) {
 		if((*(users+i)).online == 0) {
 			strcpy((*(users+i)).info.userId, (*info).userId);
-			strcpy((*(users+i)).info.colorId, (*info).colorId);
+			(*(users+i)).info.colorId = (*info).colorId; //strcpy((*(users+i)).info.colorId, (*info).colorId);
 			//memcpy(&((*(users+i)).addr), &address,
     				//sizeof(struct sockaddr_in));
 			(*(users+i)).addr = *address;
@@ -101,7 +101,7 @@ void printOnlineUsers(){
 
 	for (i = 0; i < 100; i++){
 		if((*(users+i)).online == 1) {
-			printf("User:%s %s \033[0m \n", ((*(users+i)).info.colorId), ((*(users+i)).info.userId));
+			printf("Username:\033[%dm %s \033[0m \n", ((*(users+i)).info.colorId), ((*(users+i)).info.userId));
 			inet_ntop(AF_INET, &((*(users+i)).addr.sin_addr), buffer, len);
 			printf("Address: %s\n", buffer);
 			printf("Port: %d\n",(*(users+i)).addr.sin_port);
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
 
 		struct infoCard myInfo;
 		char *myId = malloc( (size_t) 50 );
-		char *myColor = malloc( (size_t) 1);
+		unsigned short myColor;//char *myColor = malloc( (size_t) 1);
 		if (assignUser) {
 			generateId(myId);
 		}
@@ -208,8 +208,8 @@ int main(int argc, char *argv[])
 			myId = getUser(tempBuf, myUser);
 		}
 		strcpy(myInfo.userId, myId);
-		generateColor(myColor);
-		strcpy(myInfo.colorId, myColor);
+		myColor = generateColor();
+		myInfo.colorId = myColor;//strcpy(myInfo.colorId, myColor);
 
 		printf("\n\033[97m---------=[ New client connected ]=---------\n");
 		int lene=20;
@@ -236,7 +236,7 @@ void standByMe(struct infoCard* myInfo, int sockUDP){
 	n = sizeof(cli_addr);
 	char buffer[256];
 	int success;
-	printf("Username:%s %s \033[97m \n-------------------------------------------- \033[0m\n", myInfo->colorId, myInfo->userId);
+	printf("Username:\033[%dm %s \033[97m \n-------------------------------------------- \033[0m\n", myInfo->colorId, myInfo->userId);
 	short breakUpFlag = 0;
 	char *userMessage;
 
@@ -256,6 +256,7 @@ void standByMe(struct infoCard* myInfo, int sockUDP){
 			switch (command){
 				case 'e':
 					breakUpFlag = 1;
+					printf("\n-->\033[%dm %s\033[37m has disconnected \033[0m\n", myInfo->colorId, myInfo->userId);
 					removeOnlineUser(myInfo->userId);
 					success = sendto(sockUDP,(const char *) '$', 1,
 					   MSG_CONFIRM, (const struct sockaddr *) &cli_addr,
@@ -336,11 +337,11 @@ char* generateId(char* dest){
 	return dest;
 }
 
-char* generateColor(char* dest) {
+unsigned short generateColor() {//char* generateColor(char* dest) {
 	int flag = getRandom(0, 1),
 		colorId = getRandom(31, 36);
     //printf("Color Id: %d \n", colorId + 60*flag);
-	sprintf(dest, "\033[%dm", colorId + 60*flag);
+	unsigned short dest = colorId + 60*flag;//sprintf(dest, "\033[%dm", colorId + 60*flag);
 	return dest;
 }
 
