@@ -20,7 +20,6 @@ int getPortNumber();
 short verifyUserAssignation(char *user);
 char *getUser(char *, char *);
 void getUserIdFromMessage(char *, char *);
-unsigned short getColorId(char *);
 void getMessage(char *, char *);
 void getIPAddress(char*);
 int findExistingClient(char*);
@@ -60,7 +59,8 @@ struct user* findOnlineUser(char* userId){
 	}
 	return NULL;
 }
-char *findUserByAddress(struct sockaddr_in* address){
+
+struct user* findUserByAddress(struct sockaddr_in* address){
 	int i;
 	int lenUser=20;
 	char bufferUser[lenUser];
@@ -78,7 +78,7 @@ char *findUserByAddress(struct sockaddr_in* address){
 			inet_ntop(AF_INET, &((*(users+i)).addr.sin_addr), bufferTemp, lenTemp);
 
 			if(strcmp(bufferUser, bufferTemp) == 0 && ((*(users+i)).addr.sin_port == (*address).sin_port)) {
-				return (*(users+i)).info.userId;
+				return &(*(users+i));//.info.userId;
 			}
 		}
 	}
@@ -192,12 +192,12 @@ int main(int argc, char *argv[])
 	char bufferLocalAddr[lenLocalAddr];
 	inet_ntop(AF_INET, &(servUDP_addr.sin_addr), bufferLocalAddr, lenLocalAddr);
 	printf("#== Address: %s \n", bufferLocalAddr);
-	printf("#== Port: %d \n#=-=-=-=-=-=-=-=-=-=-=# \033[0m \n", portNumber);
+	printf("#== Port: %d \n#=-=-=-=-=-=-=-=-=-=-=-=-=# \033[0m \n", portNumber);
 
 	while(1)
 	{
 		char tempBuf[50];
-		bzero((char *) tempBuf,sizeof(tempBuf)); //tempBuf needs to be clean because of possible past users
+		bzero((char *) tempBuf,sizeof(tempBuf)); //tempBuf needs to be cleaned because of possible past users
 		socklen_t lenUDP;
 		lenUDP = sizeof(cli_addr);
 		recvfrom(socketUDP, (char *)tempBuf, 50,
@@ -214,7 +214,6 @@ int main(int argc, char *argv[])
 			bzero((char *) myUser,sizeof(myUser));
 			myId = getUser(tempBuf, myUser);
 			strcpy(myInfo.userId,myId);
-			existingClient = findExistingClient(myId);//Verifica si ya existe el usuario
 		}
 		strcpy(myInfo.userId, myId);
 		if (findExistingClient(myId)) { //verifica si ya existe un usuario
@@ -228,23 +227,21 @@ int main(int argc, char *argv[])
 
 		myInfo.colorId = generateColor();
 
-		printf("\n\033[97m---------=[ New client connected ]=---------\n");
 		int lene=20;
 		int portNewClient = 0;
 		char buffere[lene];
-		printf("User: %s\n",myId);
 		inet_ntop(AF_INET, &(cli_addr.sin_addr), buffere, lene);
-		printf("Address: %s\n",buffere);
 		portNewClient = ntohs(cli_addr.sin_port);
-		printf("port: %d\n--------------------------------------------\n", portNewClient);
-
 		addOnlineUser(&myInfo, &cli_addr);
-		printf("Username:\033[%dm %s \033[97m \n-------------------------------------------- \033[0m\n", myInfo.colorId, myInfo.userId);
+		printf("\n\033[97m---------=[ New client connected ]=---------\n");
+		printf("Username:\033[%dm %s \033[97m \n", myInfo.colorId, myInfo.userId);
+		printf("Address: %s\n",buffere);
+		printf("port: %d\n--------------------------------------------\033[0m \n", portNewClient);
 
 		pid = fork();
 		if(pid < 0)
-			error("ERROR on fork");
-		if(pid == 0){
+			error("\n\033[91m!!> ERROR on fork <!! \033[0m\n");
+		if(pid == 0) {
 			standByMe(socketGeneral);
 			exit(0);
 		}
@@ -254,8 +251,7 @@ int main(int argc, char *argv[])
 
 void standByMe(int sockUDP){
 	struct sockaddr_in cli_addr;
-	unsigned int n;
-	n = sizeof(cli_addr);
+	unsigned int n = sizeof(cli_addr);
 	char buffer[256];
 	int success;
 
@@ -263,7 +259,7 @@ void standByMe(int sockUDP){
 	char finalMessageUsers[256];
 
 	short breakUpFlag = 0;
-	char *userMessage;
+	struct user *userMessage;
 
 	while (!breakUpFlag){
 		bzero(buffer,256);
@@ -281,8 +277,8 @@ void standByMe(int sockUDP){
 			switch (command) {
 				case 'e':
 					breakUpFlag = 1;
-					printf("\033[%dm:->> %s has disconnected \033[0m\n", myInfo->colorId, myInfo->userId);
-					removeOnlineUser(userMessage);
+					printf("\033[%dm:->> %s has disconnected \033[0m\n", userMessage->info.colorId, userMessage->info.userId);
+					removeOnlineUser(userMessage->info.userId);
 					success = sendto(sockUDP, "$", 1,
 					   				 MSG_CONFIRM, (const struct sockaddr *) &cli_addr,
 						  	 		 sizeof(cli_addr));
@@ -314,26 +310,24 @@ void standByMe(int sockUDP){
 			char userId[20];
 			char message[256];
 			char finalMessage[256];
-			unsigned short colorMessage = getColorId(userMessage);
 			bzero(userId, 20);
 			bzero(message, 256);
 			bzero(finalMessage, 256);
 			getUserIdFromMessage(buffer, userId);
 			getMessage(buffer, message);
-			sprintf(finalMessage, "\033[4;%dm> %s:\033[0m ", colorMessage, userMessage);
-			//strcpy(finalMessage, userMessage);
-			//strcat(finalMessage, ": \033[0m");
+			sprintf(finalMessage, "\033[4;%dm> %s:\033[0m ", userMessage->info.colorId, userMessage->info.userId);
 			strcat(finalMessage, message);
-			struct user *usuario = findOnlineUser(userId);
+			struct user *userRecipient = findOnlineUser(userId);
 			success = sendto(sockUDP, (const char *) finalMessage,256,
-				  MSG_CONFIRM, (const struct sockaddr *) &((*usuario).addr),
-				  sizeof((*usuario).addr));
+				  MSG_CONFIRM, (const struct sockaddr *) &((*userRecipient).addr),
+				  sizeof((*userRecipient).addr));
 			if (success == -1)
-				printf("Error sending message\n");//printf("0> \033[%dm%s \033[97m-> \033[%dm\"%s\" \033[97m}>\033[91m Error sending message \033[0m\n", myInfo->colorId, myInfo->userId, colorMessage, userMessage);
+				printf("0>\033[%dm %s\033[97m -> ??? }>\033[91m Error sending message! \033[0m\n",
+					   userMessage->info.colorId, userMessage->info.userId);
 			else {
-				printf("Message sent!\n");
-				/*printf("test > \033[%dm %s < \033[0m \n", colorMessage, userMessage);
-				printf("0> \033[%dm%s \033[97m-> \033[%dm%s \033[97m}> Message sent! \033[0m\n", myInfo->colorId, myInfo->userId, colorMessage, userMessage);*/
+				printf("0>\033[%dm %s\033[97m ->\033[%dm %s\033[97m }> Message sent! \033[0m\n",
+					   userMessage->info.colorId, userMessage->info.userId,
+				   	   userRecipient->info.colorId, userRecipient->info.userId);
 			}
 		}
 	}
@@ -386,17 +380,6 @@ void getUserIdFromMessage(char *input, char *userId){
 		userId[i] = '\0';
 		return;
 	}
-}
-
-unsigned short getColorId(char* userId) {
-	int i;
-	unsigned short colorId = 39;
-	for (i = 0; i < 100; i++) {
-		if((*(users+i)).online == 1 && strcmp((*(users+i)).info.userId, userId) == 0) {
-			colorId = (*(users+i)).info.colorId;
-		}
-	}
-	return colorId;
 }
 
 void getMessage(char *input, char *message){
