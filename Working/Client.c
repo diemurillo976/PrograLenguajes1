@@ -35,8 +35,8 @@ int main(int argc, char *argv[])
     int random;
     bzero(ipAddress, 20);
 
-    if (argc < 2) {
-       fprintf(stderr,"usage: %s username\n", argv[0]);
+    if (argc > 2) {
+       fprintf(stderr,"Usage: %s [username]\n", argv[0]);
        exit(0);
     }
 

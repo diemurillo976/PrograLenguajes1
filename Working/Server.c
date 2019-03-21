@@ -286,9 +286,9 @@ void standByMe(int sockUDP){
 
 				case 'p':
 					bzero(finalMessageUsers, 256);
-					printf("\n\033[97m------=[ Printing online users.. ]=------ \033[0m \n");
+					printf("\n\033[97m----=[ Printing online users.. ]=----\033[0m \n");
 					printOnlineUsers();
-					strcat(finalMessageUsers, "Printing user list...");
+					strcat(finalMessageUsers, "\033[95m#= Printing user list...");
 					addOnlineUsersToMessage((char*) arrayUsers);
 					strcat(finalMessageUsers, arrayUsers);
 
@@ -493,12 +493,15 @@ int findExistingClient(char *userId) {
 void addOnlineUsersToMessage(char *array) {
 	int i;
 	bzero(array, 256);
-
+	char userString[51];
 	for (i = 0; i < 100; i++){
 		if((*(users+i)).online == 1){
-			strcat(array,"User: ");
+			sprintf(userString, "\n\033[%dm> %s", (*(users+i)).info.colorId, (*(users+i)).info.userId);
+			strcat(array, userString);
+			/*strcat(array,"User: ");
 			strcat(array,(*(users+i)).info.userId);
-			strcat(array,"\n");
+			strcat(array,"\n");*/
 		}
 	}
+	strcat(array, "\033[0m\n");
 }
